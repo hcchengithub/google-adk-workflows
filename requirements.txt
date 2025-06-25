@@ -1,0 +1,25 @@
+# Google Agent Development Kit (ADK)
+google-adk
+
+# Google Generative AI
+google-generativeai
+
+# Environment Variables Management
+python-dotenv
+
+# Type Hints and Async Support
+typing-extensions
+
+# Additional Utilities
+asyncio
+
+# Development Dependencies (optional)
+pytest>=7.0.0
+pytest-asyncio>=0.21.0
+
+# Logging and Debugging
+loguru
+
+# Optional: For enhanced functionality
+pydantic>=2.0.0
+httpx>=0.24.0 
