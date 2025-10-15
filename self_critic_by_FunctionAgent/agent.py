@@ -3,16 +3,20 @@ Self Critic Agent
 Provides intelligent critique and quality assurance for travel planning outputs.
 """
 
-from google.genai.types import Content, Part
-from typing import AsyncGenerator
-from google.adk.agents import BaseAgent, LlmAgent, SequentialAgent, ParallelAgent
-from google.adk.events import Event
-from google.adk.agents.invocation_context import InvocationContext
 import os
 from dotenv import load_dotenv
+from typing import AsyncGenerator, Optional, Callable, Any
+
+from google.adk.agents import BaseAgent, LlmAgent, SequentialAgent, ParallelAgent
+from google.adk.agents.callback_context import CallbackContext
+from google.adk.models import LlmResponse, LlmRequest
+import google.genai.types as types
+
 
 # Load environment variables
 load_dotenv()
+
+MODEL = os.getenv('MODEL_NAME', 'gemini-2.0-flash')
 
 # Import all agents from common subagent file
 from subagent import (
@@ -30,7 +34,7 @@ trip_summary_agent = create_trip_summary_agent()
 
 # Trip Summary Reviewer - specific to self-critic workflow
 trip_summary_reviewer = LlmAgent(
-    model=os.getenv('MODEL_NAME', 'gemini-2.0-flash'),
+    model=MODEL,
     name="TripSummaryReviewer",
     instruction="""Review the trip summary in {trip_summary}.
     - Check if the trip summary includes all necessary details such as flight information, hotel booking, sightseeing options, and any other relevant trip details.
@@ -46,30 +50,47 @@ plan_parallel = ParallelAgent(
     description="Fetch flight and hotel information parallely. Each sub-agent will return a JSON response with their respective details."
 )
 
-# Custom validation agent - specific to self-critic workflow
-class ValidateTripSummary(BaseAgent):
-    async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
-        status = ctx.session.state.get("review_status", None)
-        review = ctx.session.state.get("trip_summary", None)
-        print(f"Review Status: {status}")
-        print(f"Trip Summary: {review}")
-        
-        if status == "pass":
-            yield Event(author=self.name, content=Content(parts=[Part(text=f"Trip summary review passed: {review}")]))
-        else:
-            yield Event(author=self.name, content=Content(parts=[Part(text=f"Trip summary review failed: {review}")]))
+class FunctionAgent:
+    def __init__(self, name: str, model: str,  **kwargs: Any):
+        self.name = name
+        self.model = model
+        self.kwargs = kwargs
 
+    def __call__(self, func: Callable[[CallbackContext, LlmRequest], Optional[LlmResponse]]) -> LlmAgent:
+        return LlmAgent(
+            name=self.name,
+            model=self.model,
+            **self.kwargs,
+            before_model_callback=func,
+        )
 
-validate_trip_summary_agent = ValidateTripSummary(
+@FunctionAgent(
     name="ValidateTripSummary",
+    model=MODEL,
     description="Validates the trip summary review status and provides feedback based on the review outcome.",
 )
-
+async def validate_trip_summary(callback_context: CallbackContext, llm_request: LlmRequest) -> Optional[LlmResponse]:
+    status = callback_context.state.get("review_status", None)
+    review = callback_context.state.get("trip_summary", None)
+    print(f"Review Status: {status}")
+    print(f"Trip Summary: {review}")
+    
+    if status == "pass":
+        text_content = f"Trip summary review passed: {review}"
+    else:
+        text_content = f"Trip summary review failed: {review}"
+    
+    return LlmResponse(
+        content=types.Content(
+            role="model",
+            parts=[types.Part(text=text_content)],
+        )
+    )
 
 root_agent = SequentialAgent(
     name="PlanTripWorkflow",
     description="Orchestrates the trip planning process by first fetching flight, hotel, and sightseeing information concurrently, then summarizing the trip details into a single document.",
     # Run parallel fetch, then synthesize
     sub_agents=[sightseeing_agent, plan_parallel,
-                trip_summary_agent, trip_summary_reviewer, validate_trip_summary_agent]
+                trip_summary_agent, trip_summary_reviewer, validate_trip_summary]
 )

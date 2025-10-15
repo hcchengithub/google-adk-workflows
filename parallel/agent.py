@@ -11,7 +11,13 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Import all agents from common subagent file
-from subagent import flight_agent, hotel_agent, sightseeing_agent, trip_summary_agent
+from subagent import create_flight_agent, create_hotel_agent, create_sightseeing_agent, create_trip_summary_agent
+
+# Create new instances of the agents
+flight_agent = create_flight_agent()
+hotel_agent = create_hotel_agent()
+sightseeing_agent = create_sightseeing_agent()
+trip_summary_agent = create_trip_summary_agent()
 
 plan_parallel = ParallelAgent(
     name="ParallelTripPlanner",
