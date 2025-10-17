@@ -1,0 +1,411 @@
+
+Bookmarks 
+----------
+
+	🎉 09:32 2025-10-10 Codex 的成功宣言
+	🎉 09:29 2025-10-17 成功跑起來了！ 
+	我首先打个 Hi，然后得到第一批成果 ....
+	Loggings screen dump ....
+
+
+你先了解一下什麼叫做「function agent」
+
+### System prompt: Use FunctionAgent in Google ADK
+
+- Definition: FunctionAgent is a decorator that turns a function with a before_model_callback-like signature into a runnable LlmAgent. Returning an LlmResponse acts as a circuit breaker that skips the model. Returning None lets the request go to the model.
+- Signature requirement: (CallbackContext, LlmRequest) -> Optional[LlmResponse]
+- Behavior:
+    - If deterministic logic can produce the answer, return LlmResponse directly.
+    - If model reasoning is needed, return None and let ADK call the LLM.
+    - If content is oversized, store externally and return a short summary plus a handle instead of passing large blobs to the model.
+
+### FunctionAgent decorator (code definition)
+
+```python
+from typing import Callable, Any, Optional
+from google.adk.agents import LlmAgent
+from google.adk.agents.callback_context import CallbackContext
+from google.adk.models import LlmResponse, LlmRequest
+
+class FunctionAgent:
+    def __init__(self, name: str, model: str, **kwargs: Any):
+        [self.name](http://self.name) = name
+        self.model = model
+        self.kwargs = kwargs
+
+    def __call__(self, func: Callable[[CallbackContext, LlmRequest], Optional[LlmResponse]]) -> LlmAgent:
+        return LlmAgent(
+            name=[self.name](http://self.name),
+            model=self.model,
+            before_model_callback=func,
+            **self.kwargs,
+        )
+```
+
+### Minimal usage
+
+```python
+@FunctionAgent(name="step", model=MODEL)
+async def step(ctx: CallbackContext, req: LlmRequest) -> Optional[LlmResponse]:
+    # Deterministic logic
+    return LlmResponse.from_text("OK")  # Skip LLM
+    # If you need the model, return None
+```
+
+### Chain multiple steps
+
+```python
+@FunctionAgent(name="step_a", model=MODEL)
+async def step_a(ctx, req):
+    return LlmResponse.from_text("A done")
+
+@FunctionAgent(name="step_b", model=MODEL)
+async def step_b(ctx, req):
+    return LlmResponse.from_text("B done")
+
+root = SequentialAgent(name="flow", sub_agents=[step_a, step_b])
+```
+
+### Oversized payload pattern (Option)
+
+```python
+MAX_BYTES = 200_000
+
+def store_big(obj) -> dict:
+    uri = put_to_object_store(obj)  # implement
+    return {"type":"deferred_payload","uri":uri,"bytes":estimate_bytes(obj)}
+
+def safe_tool(tool_fn, *args, **kw):
+    out = tool_fn(*args, **kw)
+    return {"mode":"inline","data":out} if estimate_bytes(out) <= MAX_BYTES \
+        else {"mode":"deferred","handle":store_big(out),"preview":make_preview(out)}
+
+@FunctionAgent(name="guard_before_llm", model=MODEL)
+async def guard_before_llm(ctx, req):
+    if contains_oversized_parts(req):
+        return LlmResponse.from_text("Large output deferred. Use handle to load in chunks.")
+    return None
+```
+
+### Checklist
+
+- Deterministic? Return LlmResponse now.
+- Needs model? Return None.
+- Too large? Store externally (ADK’s artifact machenism). Return summary + handle.
+
+
+Function Agent 可以用來做實驗，實驗 ADK 架構裏面的各種 component。 特別是 multi-agent 的前後串接，有各種機制，我們在 study
+的時候就可以利用 Function Agent 來幫忙比較簡單。 The following 這篇文章你能明白嗎？如果你能看得懂，那接下來我為了要了解這裡面所談到的東西 I need you  to help me 寫前後兩個 FunctionAgent 
+來串接裡面所提到的這一些資料串接的方法:
+
+在跨代理（Agent）系統中傳遞資料是實現複雜工作流程（Multi-Agent System）的核心挑戰之一。
+根據您提供的資料，特別是關於 Agent Development Kit (ADK) 框架的資訊，跨 Agent 傳遞資訊或資料主要有以下幾種方法。您可能正在回想的另一種方法很可能是指會話狀態（Session State），因為這是 output key 機制的基礎，也是代理之間共享資訊最常用的方式。
+以下是主要的資料傳遞和溝通機制：
+1. 會話狀態 (Session State)
+這是 Agent 之間共享資料的核心機制。
+• 機制概述： 會話狀態是一個結構化的鍵值儲存（key-value store），允許代理在整個對話生命週期（Session）中讀取和寫入資料。無論是 LLM 代理還是工作流代理，它們都可以存取這個共享的狀態。
+• 如何使用： 代理或工具可以透過傳遞給它們的上下文物件（Context Objects，例如 CallbackContext 或 ToolContext）來存取和修改狀態。例如，工具可以使用 tool_context.state['key'] = value 來儲存資訊。
+• 用途： 儲存使用者偏好設定、追蹤多步驟工作流程的進度，以及保存上一個 Agent 處理的結果供下一個 Agent 使用。
+2. 輸出鍵 (Output Key)
+這是您已知的方法，它是一種將代理的最終結果自動寫入會話狀態的便利功能。
+• 機制概述： 在定義 Agent 時，設定 output_key 參數 (例如：output_key="generated_script")。當該 Agent 完成其主要工作並產生最終響應時，ADK 框架會自動將該響應的文字內容儲存到會話狀態中，鍵名即為您指定的 output_key。
+• 用途： 讓後續的 Agent（尤其是在 SequentialAgent 或 LoopAgent 等工作流程中）可以直接從狀態中取得上一個 Agent 的輸出，而不需要額外的程式碼來讀取。
+3. 代理工具 (AgentTool) / 顯式委派 (Explicit Delegation)
+Agent 不僅可以使用傳統工具（如 Python 函數），還可以將另一個 Agent 包裝成一個工具來使用。
+• 機制概述： 父級 Agent 可以透過其 LLM 的推理能力，決定調用一個被封裝為 AgentTool 的子 Agent。當這個工具被調用時，子 Agent 開始執行。
+• 資料傳遞： 子 Agent 在執行過程中對共享會話狀態所做的任何更改都會保留，並且子 Agent 的最終結果將作為工具的輸出返回給父級 Agent，讓父級 Agent 可以將其整合到最終回應中。
+4. 構件處理 (Artifact Handling)
+當需要傳輸較大的資料塊、檔案或文件（例如 PDF、圖片或設定檔）時，會使用此方法。
+• 機制概述： 代理或回呼（Callback）可以使用 context.save_artifact 將檔案儲存到配置的 Artifact 儲存服務中，並使用 context.load_artifact 來檢索這些文件。
+• 用途： 管理與會話相關的檔案引用或大型資料 Blob。
+5. LLM 驅動的自動流程/委派 (LLM-Driven Auto-Flow/Delegation)
+雖然這不是嚴格意義上的「資料」傳遞，但它是「資訊」和「控制權」傳遞的主要方式。
+• 機制概述： 在多 Agent 系統中，父級 Agent（通常是 LlmAgent）會利用其 LLM 的推理能力，根據使用者查詢和子 Agent 的 description（描述）來決定將任務或查詢轉交（transfer）給哪個最適合的子 Agent。
+• 資料傳遞： 當控制權轉移時，整個會話上下文（包括所有歷史記錄和當前的 Session State）都會傳遞給被委派的子 Agent，確保資訊連續性。
+6. 回呼函數 (Callbacks) 的狀態管理
+回呼函數在 Agent 生命週期的特定時間點執行（例如 before_tool_callback 或 after_model_callback）。它們雖然不是主要的資料傳輸工具，但它們是讀取、寫入和修改中間資料的關鍵地方。
+• 機制概述： 回呼函數可以存取 callback_context.state 或 tool_context.state，從而在特定步驟（如工具執行前後、模型呼叫前後）之間動態傳遞和修改資料。
+• 範例用途： 在 after_tool_callback 中儲存工具的結果或 ID 到狀態中，供後續步驟讀取。
+
+
+前面我們進行到一半就宕機。以下是剛剛進展到最後的對話。 那我們繼續吧！ 
+
+> 你有沒有看到 parallel 這個 app folder？模仿這裡面的 agent.py 的寫法，幫 example_agents.py 做一個 app folder。folder name 你幫我想一下。
+
+✦ 好的，我明白了。我會為您創建一個新的應用程式資料夾，並模仿 parallel 資料夾的結構，在其中包含一個 agent.py 檔案。這個 agent.py
+  將會實作我們之前討論的兩個 FunctionAgent，並將它們串接起來。
+
+  我將這個資料夾命名為 session_state_flow，以明確表示其功能是演示會話狀態的資料流。
+
+  首先，我會創建 session_state_flow 資料夾：
+  
+前面因為當機，所以你有一點跟不上剛剛的狀況。"session_state_flow\agent.py" 應該要像 parallel/agent.py 引用 subagent.py 一樣地引用 example_agents.py
+
+Change to use Codex CLI.
+
+We are working on example_agents.py and session_state_flow/agent.py.
+
+1. "session_state_flow\agent.py" 應該要像 parallel/agent.py 引用 subagent.py 一樣地引用 example_agents.py
+2. 執行方式是在本 working directory 執行 'adk web', 進入網頁環境選擇某個 app 也就是這些 folder 之一 [parallel, session_state_flow, simple, ...]
+  
+2025-10-17 09:23:20,060 - ERROR - adk_web_server.py:1076 - Error in event_generator: module 'google.generativeai.types' has no attribute 'Content'
+Traceback (most recent call last):
+  File "C:\Users\8304018\OneDrive - Wistron Corporation\Documents\GitLab\adks\google-adk-workflows\example_agents.py", line 58, in _process_initial_data
+    input_value = int(raw_text)
+ValueError: invalid literal for int() with base 10: 'hi'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\8304018\venvs\adks\Lib\site-packages\google\adk\cli\adk_web_server.py", line 1066, in event_generator
+    async for event in agen:
+    ...<7 lines>...
+      yield f"data: {sse_event}\n\n"
+  File "C:\Users\8304018\venvs\adks\Lib\site-packages\google\adk\runners.py", line 314, in run_async
+    async for event in agen:
+      yield event
+  File "C:\Users\8304018\venvs\adks\Lib\site-packages\google\adk\runners.py", line 310, in _run_with_trace
+    async for event in agen:
+      yield event
+  File "C:\Users\8304018\venvs\adks\Lib\site-packages\google\adk\runners.py", line 354, in _exec_with_plugin
+    async for event in agen:
+    ...<8 lines>...
+      yield (modified_event if modified_event else event)
+  File "C:\Users\8304018\venvs\adks\Lib\site-packages\google\adk\runners.py", line 304, in execute
+    async for event in agen:
+      yield event
+  File "C:\Users\8304018\venvs\adks\Lib\site-packages\google\adk\agents\base_agent.py", line 248, in run_async
+    async for event in agen:
+      yield event
+  File "C:\Users\8304018\venvs\adks\Lib\site-packages\google\adk\agents\base_agent.py", line 238, in _run_with_trace
+    async for event in agen:
+      yield event
+  File "C:\Users\8304018\venvs\adks\Lib\site-packages\google\adk\agents\sequential_agent.py", line 46, in _run_async_impl
+    async for event in agen:
+      yield event
+  File "C:\Users\8304018\venvs\adks\Lib\site-packages\google\adk\agents\base_agent.py", line 248, in run_async
+    async for event in agen:
+      yield event
+  File "C:\Users\8304018\venvs\adks\Lib\site-packages\google\adk\agents\base_agent.py", line 238, in _run_with_trace
+    async for event in agen:
+      yield event
+  File "C:\Users\8304018\venvs\adks\Lib\site-packages\google\adk\agents\llm_agent.py", line 288, in _run_async_impl
+    async for event in agen:
+      self.__maybe_save_output_to_state(event)
+      yield event
+  File "C:\Users\8304018\venvs\adks\Lib\site-packages\google\adk\flows\llm_flows\base_llm_flow.py", line 401, in run_async
+    async for event in agen:
+      last_event = event
+      yield event
+  File "C:\Users\8304018\venvs\adks\Lib\site-packages\google\adk\flows\llm_flows\base_llm_flow.py", line 437, in _run_one_step_async
+    async for llm_response in agen:
+    ...<13 lines>...
+          yield event
+  File "C:\Users\8304018\venvs\adks\Lib\site-packages\google\adk\flows\llm_flows\base_llm_flow.py", line 686, in _call_llm_async
+    if response := await self._handle_before_model_callback(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        invocation_context, llm_request, model_response_event
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ):
+    ^
+  File "C:\Users\8304018\venvs\adks\Lib\site-packages\google\adk\flows\llm_flows\base_llm_flow.py", line 805, in _handle_before_model_callback
+    callback_response = await callback_response
+                        ^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\8304018\OneDrive - Wistron Corporation\Documents\GitLab\adks\google-adk-workflows\example_agents.py", line 127, in handler
+    return await _process_initial_data(callback_context, llm_request)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\8304018\OneDrive - Wistron Corporation\Documents\GitLab\adks\google-adk-workflows\example_agents.py", line 78, in _process_initial_data
+    content=types.Content(
+            ^^^^^^^^^^^^^
+AttributeError: module 'google.generativeai.types' has no attribute 'Content'
+
+你可以從本 repo 的其他現成的 examples 裡面，找到 sample code。 
+
+
+🎉 09:32 2025-10-10 Codex 的成功宣言
+────────────────────────────────-─────
+
+> 剛剛安裝完套件後，google.generativeai.types 在 0.7.x 版裡已經不再提供 Content/Part 這些型別，因此才會出現 AttributeError。我把 example_agents.py 的匯入改回
+  ADK 其他範例也在用的 google.genai.types，同時保持原本詳細的 emoji logging。現在處理流程如下：
+
+  - example_agents.py:7 改成 import google.genai.types as types，回到含 Content/Part 的模組。
+  - 兩個 async handler 中回傳 LlmResponse 時，改成 types.Content(role="model", parts=[types.Part(text=...)])，其它行為（狀態快照、錯誤處理、emoji logging）都
+  還在。
+
+  請重新啟動 adk web，再選 session_state_flow，這次就不會再噴 Content 找不到的錯誤，而且輸入非數字會落在我們的錯誤處理，日誌裡也看得到完整的 emoji 訊息。
+
+
+🎉 09:29 2025-10-17 成功跑起來了！ 
+────────────────────────────────
+
+我首先打个 Hi，然后得到第一批成果，结果是个错误，因为它要求的是数字。接下来我打一个 8，按下 Enter，得到第二批结果，这次是正确的。 
+
+	adk web
+	----------------------
+	hi
+
+	錯誤：請提供可以解析成整數的文字。
+
+	錯誤：會話狀態中找不到 'processed_data'。
+
+	8
+
+	輸入值 8 已處理，結果 16 已寫入會話狀態。
+
+	從會話狀態讀取資料 16，最終結果為 26。
+
+	Loggings screen dump 
+	----------------------------
+	2025-10-17 09:27:35,637 - INFO - envs.py:47 - Loaded .env file for session_state_flow at C:\Users\8304018\OneDrive - Wistron Corporation\Documents\GitLab\adks\google-adk-workflows\.env
+	2025-10-17 09:27:35,640 - INFO - envs.py:47 - Loaded .env file for session_state_flow at C:\Users\8304018\OneDrive - Wistron Corporation\Documents\GitLab\adks\google-adk-workflows\.env
+	2025-10-17 09:27:35,675 - INFO - agent_loader.py:126 - Found root_agent in session_state_flow.agent
+	C:\Users\8304018\venvs\adks\Lib\site-packages\google\adk\cli\adk_web_server.py:330: UserWarning: [EXPERIMENTAL] App: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+	  agentic_app = App(
+	2025-10-17 09:27:35,688 - INFO - example_agents.py:48 - 🌟 [process_initial_data] Starting…
+	2025-10-17 09:27:35,689 - INFO - example_agents.py:49 - 🔍 [process_initial_data] Raw request object: 
+		LlmRequest(
+			model='gemini-1.5-flash', 
+			contents = [
+			    Content(
+			        parts = [
+			            Part(text = 'hi'),
+			        ],
+			        role = 'user')
+			],
+			config = GenerateContentConfig(
+			  system_instruction='You are an agent. Your internal name is "process_initial_data".'  <---- 找不到定義，這應該是 LlmAgent 內建的。 
+			), 
+			live_connect_config=LiveConnectConfig(), 
+			tools_dict={}
+		)                                                        vvvvvvvvvvvvvvvvv 第一隻 Agent  
+	2025-10-17 09:27:35,689 - INFO - example_agents.py:50 - 🗃️ [process_initial_data] Session state before: <state unavailable>
+	2025-10-17 09:27:35,690 - INFO - example_agents.py:56 - 📝 [process_initial_data] Raw text from request: hi
+	2025-10-17 09:27:35,690 - ERROR - example_agents.py:81 - ⚠️ [process_initial_data] Error processing input: invalid literal for int() with base 10: 'hi'
+	
+																 vvvvvvvvvvvvvvvvvvv 第二隻 Agent  
+	2025-10-17 09:27:35,691 - INFO - example_agents.py:104 - 🌟 [use_and_finalize_data] Starting…
+	2025-10-17 09:27:35,691 - INFO - example_agents.py:105 - 🔍 [use_and_finalize_data] Raw request object: 
+		LlmRequest(
+			model='gemini-1.5-flash', 
+			contents = [
+			    Content(					      🏅 從這裡可以看得出來，sequential agent 前面的 context chart turns 都有傳下來。 
+			        parts = [
+			            Part(text = 'hi'),
+			        ],
+			        role = 'user'),
+			    Content(
+			        parts = [
+			            Part(text = 'For context:'),
+			            Part(text = '[process_initial_data] said: 錯誤：請提供可以解析成整數的文字。'),
+			        ],
+			        role = 'user')
+			], 
+			config = GenerateContentConfig(
+				system_instruction='You are an agent. Your internal name is "use_and_finalize_data".' <---- 找不到定義，這應該是 LlmAgent 內建的。 
+			), 
+			live_connect_config=LiveConnectConfig(), 
+			tools_dict={}
+		)
+	2025-10-17 09:27:35,692 - INFO - example_agents.py:106 - 🗃️ [use_and_finalize_data] Session state snapshot: <state unavailable>
+	2025-10-17 09:27:35,692 - INFO - example_agents.py:109 - 📦 [use_and_finalize_data] Retrieved processed_data: None
+	2025-10-17 09:27:35,692 - WARNING - example_agents.py:127 - ⚠️ [use_and_finalize_data] 'processed_data' not found in session state.
+	INFO:     127.0.0.1:62298 - "GET /apps/session_state_flow/users/user/sessions/bd1c17c5-de90-4adc-ad7d-160f807ddacc HTTP/1.1" 200 OK
+	INFO:     127.0.0.1:64334 - "GET /debug/trace/session/bd1c17c5-de90-4adc-ad7d-160f807ddacc HTTP/1.1" 200 OK
+	INFO:     127.0.0.1:65245 - "POST /run_sse HTTP/1.1" 200 OK
+	2025-10-17 09:28:44,442 - INFO - envs.py:47 - Loaded .env file for session_state_flow at C:\Users\8304018\OneDrive - Wistron Corporation\Documents\GitLab\adks\google-adk-workflows\.env
+	2025-10-17 09:28:44,444 - INFO - example_agents.py:48 - 🌟 [process_initial_data] Starting…
+	2025-10-17 09:28:44,444 - INFO - example_agents.py:49 - 🔍 [process_initial_data] Raw request object: LlmRequest(model='gemini-1.5-flash', contents=[Content(
+	  parts=[
+		Part(
+		  text='hi'
+		),
+	  ],
+	  role='user'
+	), Content(
+	  parts=[
+		Part(
+		  text='錯誤：請提供可以解析成整數的文字。'
+		),
+	  ],
+	  role='model'
+	), Content(
+	  parts=[
+		Part(
+		  text='For context:'
+		),
+		Part(
+		  text="[use_and_finalize_data] said: 錯誤：會話狀態中找不到 'processed_data'。"
+		),
+	  ],
+	  role='user'
+	), Content(
+	  parts=[
+		Part(
+		  text='8'
+		),
+	  ],
+	  role='user'
+	)], config=GenerateContentConfig(
+	  system_instruction='You are an agent. Your internal name is "process_initial_data".'
+	), live_connect_config=LiveConnectConfig(), tools_dict={})
+	2025-10-17 09:28:44,446 - INFO - example_agents.py:50 - 🗃️ [process_initial_data] Session state before: <state unavailable>
+	2025-10-17 09:28:44,446 - INFO - example_agents.py:56 - 📝 [process_initial_data] Raw text from request: 8
+	2025-10-17 09:28:44,446 - INFO - example_agents.py:59 - 🌟 [process_initial_data] Parsed integer value: 8
+	2025-10-17 09:28:44,447 - INFO - example_agents.py:62 - ✅ [process_initial_data] Processed value (input * 2): 16
+	2025-10-17 09:28:44,447 - INFO - example_agents.py:65 - 💾 [process_initial_data] Stored processed_data in session state: 16
+	2025-10-17 09:28:44,447 - INFO - example_agents.py:69 - 🗃️ [process_initial_data] Session state after: <state unavailable>
+	2025-10-17 09:28:44,448 - INFO - example_agents.py:72 - 🎉 [process_initial_data] Done. Response: 輸入值 8 已處理，結果 16 已寫入會話狀態。
+	2025-10-17 09:28:44,450 - INFO - example_agents.py:104 - 🌟 [use_and_finalize_data] Starting…
+	2025-10-17 09:28:44,450 - INFO - example_agents.py:105 - 🔍 [use_and_finalize_data] Raw request object: LlmRequest(model='gemini-1.5-flash', contents=[Content(
+	  parts=[
+		Part(
+		  text='hi'
+		),
+	  ],
+	  role='user'
+	), Content(
+	  parts=[
+		Part(
+		  text='For context:'
+		),
+		Part(
+		  text='[process_initial_data] said: 錯誤：請提供可以解析成整數的文字。'
+		),
+	  ],
+	  role='user'
+	), Content(
+	  parts=[
+		Part(
+		  text="錯誤：會話狀態中找不到 'processed_data'。"
+		),
+	  ],
+	  role='model'
+	), Content(
+	  parts=[
+		Part(
+		  text='8'
+		),
+	  ],
+	  role='user'
+	), Content(
+	  parts=[
+		Part(
+		  text='For context:'
+		),
+		Part(
+		  text='[process_initial_data] said: 輸入值 8 已處理，結果 16 已寫入會話狀態。'
+		),
+	  ],
+	  role='user'
+	)], config=GenerateContentConfig(
+	  system_instruction='You are an agent. Your internal name is "use_and_finalize_data".'
+	), live_connect_config=LiveConnectConfig(), tools_dict={})
+	2025-10-17 09:28:44,452 - INFO - example_agents.py:106 - 🗃️ [use_and_finalize_data] Session state snapshot: <state unavailable>
+	2025-10-17 09:28:44,453 - INFO - example_agents.py:109 - 📦 [use_and_finalize_data] Retrieved processed_data: 16
+	2025-10-17 09:28:44,453 - INFO - example_agents.py:113 - ✨ [use_and_finalize_data] Final result (processed_data + 10): 26
+	2025-10-17 09:28:44,453 - INFO - example_agents.py:119 - 🎉 [use_and_finalize_data] Done. Response: 從會話狀態讀取資料 16，最終結果為 26。
+	INFO:     127.0.0.1:65245 - "GET /apps/session_state_flow/users/user/sessions/bd1c17c5-de90-4adc-ad7d-160f807ddacc HTTP/1.1" 200 OK
+	INFO:     127.0.0.1:65245 - "GET /debug/trace/session/bd1c17c5-de90-4adc-ad7d-160f807ddacc HTTP/1.1" 200 OK
+	2025-10-17 09:37:11,028 - INFO - agent_change_handler.py:43 - Change detected in agents directory: C:\Users\8304018\OneDrive - Wistron Corporation\Documents\GitLab\adks\google-adk-workflows\example_agents.py
+	2025-10-17 09:37:11,029 - INFO - agent_change_handler.py:43 - Change detected in agents directory: C:\Users\8304018\OneDrive - Wistron Corporation\Documents\GitLab\adks\google-adk-workflows\subagent.py
+	2025-10-17 09:37:11,035 - INFO - agent_change_handler.py:43 - Change detected in agents directory: C:\Users\8304018\OneDrive - Wistron Corporation\Documents\GitLab\adks\google-adk-workflows\.ipynb_checkpoints\subagent-checkpoint.py

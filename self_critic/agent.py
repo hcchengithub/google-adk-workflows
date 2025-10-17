@@ -46,9 +46,22 @@ plan_parallel = ParallelAgent(
     description="Fetch flight and hotel information parallely. Each sub-agent will return a JSON response with their respective details."
 )
 
+
+# ---------------------------------------------------------------------------------------------------
 # Custom validation agent - specific to self-critic workflow
+#     這個地方展現的就是不同於前後的那些 Agent 的定義。
+#     以下它用的是 BaseAgent，也不是 ParallelAgent，也不是 SequentialAgent，也不是單純一個 Agent or LlmAgent。
+#     當用到 BaseAgent 的時候，它是從頭定義出一個 Class，然後再用這個 Class 來定義出我們要的 special agent。這時候
+#     就可以 access 得到底層的東西。 前述那那些已經包裝好的 agents 就看不到底層的東西。 
+#     "底層的東西" 就是 input 的 InvocationContext 以及 output 的 Event. 
+#     其實看看也明白了，event 就是 messages 裡面的一個 cell, 有 role, 有 parts, 有 text.
+
 class ValidateTripSummary(BaseAgent):
     async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
+        """
+        ctx is InvocationContext or 「調用上下文」或「呼叫上下文」
+        impl 是 implementation 的縮寫，中文通常翻譯為「實現」或「實作」
+        """
         status = ctx.session.state.get("review_status", None)
         review = ctx.session.state.get("trip_summary", None)
         print(f"Review Status: {status}")
@@ -59,11 +72,12 @@ class ValidateTripSummary(BaseAgent):
         else:
             yield Event(author=self.name, content=Content(parts=[Part(text=f"Trip summary review failed: {review}")]))
 
-
 validate_trip_summary_agent = ValidateTripSummary(
     name="ValidateTripSummary",
     description="Validates the trip summary review status and provides feedback based on the review outcome.",
 )
+
+# ---------------------------------------------------------------------------------------------------
 
 
 root_agent = SequentialAgent(

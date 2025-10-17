@@ -1,5 +1,5 @@
 """
-Self Critic Agent
+Self Critic Agent by FunctionAgent
 Provides intelligent critique and quality assurance for travel planning outputs.
 """
 
