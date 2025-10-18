@@ -5,7 +5,7 @@ Provides intelligent critique and quality assurance for travel planning outputs.
 
 import os
 from dotenv import load_dotenv
-from typing import AsyncGenerator, Optional, Callable, Any
+from typing import Optional, Any
 
 from google.adk.agents import BaseAgent, LlmAgent, SequentialAgent, ParallelAgent
 from google.adk.agents.callback_context import CallbackContext
@@ -20,6 +20,7 @@ MODEL = os.getenv('MODEL_NAME', 'gemini-2.0-flash')
 
 # Import all agents from common subagent file
 from subagent import (
+    FunctionAgent,
     create_flight_agent, 
     create_hotel_agent, 
     create_sightseeing_agent, 
@@ -49,20 +50,6 @@ plan_parallel = ParallelAgent(
     sub_agents=[flight_agent, hotel_agent],
     description="Fetch flight and hotel information parallely. Each sub-agent will return a JSON response with their respective details."
 )
-
-class FunctionAgent:
-    def __init__(self, name: str, model: str,  **kwargs: Any):
-        self.name = name
-        self.model = model
-        self.kwargs = kwargs
-
-    def __call__(self, func: Callable[[CallbackContext, LlmRequest], Optional[LlmResponse]]) -> LlmAgent:
-        return LlmAgent(
-            name=self.name,
-            model=self.model,
-            **self.kwargs,
-            before_model_callback=func,
-        )
 
 @FunctionAgent(
     name="ValidateTripSummary",
