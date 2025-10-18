@@ -1,4 +1,7 @@
 
+Development log of the applicatioin "session_state_flow"
+========================================================
+
 Bookmarks 
 ----------
 
@@ -6,7 +9,11 @@ Bookmarks
 	🎉 09:29 2025-10-17 成功跑起來了！ 
 	我首先打个 Hi，然后得到第一批成果 ....
 	Loggings screen dump ....
-
+	Codex CLI 在這個地方只取 state，後來我把它改成取整個 invocation context
+	🏅 從這裡可以看得出來，sequential agent 前面的 context chart turns 都有傳下來。 
+	🏅 從這裡可以看得出來，Content 是完整的 chat turn context.
+	09:08 2025-10-18 最新版 log 到的情況，改良了很多問題
+	🏅 這意思是說，所有的 sub agents 看到的 context 都是完整的 context。 
 
 你先了解一下什麼叫做「function agent」
 
@@ -279,6 +286,36 @@ AttributeError: module 'google.generativeai.types' has no attribute 'Content'
 			tools_dict={}
 		)                                                        vvvvvvvvvvvvvvvvv 第一隻 Agent  
 	2025-10-17 09:27:35,689 - INFO - example_agents.py:50 - 🗃️ [process_initial_data] Session state before: <state unavailable>
+	
+		Codex CLI 在這個地方只取 state，後來我把它改成取整個 invocation context
+		
+		(Pdb) dir(ctx)
+		['__class__', '__delattr__', '__dict__', '__dir__', '__doc__', '__eq__', '__firstlineno__', '__format__', '__ge__', '__getattribute__', '__getstate__', '__gt__', '__hash__', '__init__', '__init_subclass__', '__le__', '__lt__', '__module__', '__ne__', '__new__', '__reduce__', '__reduce_ex__', '__repr__', '__setattr__', '__sizeof__', '__static_attributes__', '__str__', '__subclasshook__', '__weakref__', '_event_actions', '_invocation_context', '_state', 'agent_name', 'invocation_id', 'list_artifacts', 'load_artifact', 'load_credential', 'save_artifact', 'save_credential', 'state', 'user_content']
+		
+		(Pdb) ctx.user_content
+		Content(
+		  parts=[
+			Part(
+			  text='hello world!'
+			),
+		  ],
+		  role='user'
+		)
+		
+		(Pdb) ctx.state.to_dict()
+		{}
+
+		(Pdb) ctx.invocation_id
+		'e-dbae1612-8a1c-4ec8-b206-ab117432223f'
+		
+		(Pdb) ctx.list_artifacts
+		<bound method CallbackContext.list_artifacts of <google.adk.agents.callback_context.CallbackContext object at 0x0000019AF5F2EFD0>>
+
+		(Pdb) ctx.list_artifacts()
+		<coroutine object CallbackContext.list_artifacts at 0x0000019AF602BCA0>
+		<stdin>:1: RuntimeWarning: coroutine 'CallbackContext.list_artifacts' was never awaited
+		RuntimeWarning: Enable tracemalloc to get the object allocation traceback
+
 	2025-10-17 09:27:35,690 - INFO - example_agents.py:56 - 📝 [process_initial_data] Raw text from request: hi
 	2025-10-17 09:27:35,690 - ERROR - example_agents.py:81 - ⚠️ [process_initial_data] Error processing input: invalid literal for int() with base 10: 'hi'
 	
@@ -341,7 +378,7 @@ AttributeError: module 'google.generativeai.types' has no attribute 'Content'
 	), Content(
 	  parts=[
 		Part(
-		  text='8'
+		  text='8'    🏅 從這裡可以看得出來，Content 是完整的 chat turn context.
 		),
 	  ],
 	  role='user'
@@ -409,3 +446,250 @@ AttributeError: module 'google.generativeai.types' has no attribute 'Content'
 	2025-10-17 09:37:11,028 - INFO - agent_change_handler.py:43 - Change detected in agents directory: C:\Users\8304018\OneDrive - Wistron Corporation\Documents\GitLab\adks\google-adk-workflows\example_agents.py
 	2025-10-17 09:37:11,029 - INFO - agent_change_handler.py:43 - Change detected in agents directory: C:\Users\8304018\OneDrive - Wistron Corporation\Documents\GitLab\adks\google-adk-workflows\subagent.py
 	2025-10-17 09:37:11,035 - INFO - agent_change_handler.py:43 - Change detected in agents directory: C:\Users\8304018\OneDrive - Wistron Corporation\Documents\GitLab\adks\google-adk-workflows\.ipynb_checkpoints\subagent-checkpoint.py
+
+09:08 2025-10-18 最新版 log 到的情況，改良了很多問題。 
+
+	2025-10-18 09:00:02,412 - INFO - example_agents.py:174 - 🚀🚀 [use_and_finalize_data] Starting…
+	2025-10-18 09:00:02,413 - INFO - example_agents.py:175 - 🧾 [use_and_finalize_data] Context snapshot: {'agent_name': 'use_and_finalize_data', 'invocation_id': 'e-64ef4470-af87-44b3-9de4-1a6a0648848e', 'state': "{'processed_data': 46}", 'user_content': {'role': 'user', 'parts': ['23']}}
+	2025-10-18 09:00:02,413 - INFO - example_agents.py:176 - ?? [use_and_finalize_data] Raw request object: LlmRequest(model='gemini-1.5-flash', contents=[Content(
+	  parts=[
+		Part(
+		  text='hi'			🏅 這意思是說，所有的 sub agents 看到的 context 都是完整的 context。 
+		),
+	  ],
+	  role='user'
+	), Content(
+	  parts=[
+		Part(
+		  text='For context:'
+		),
+		Part(
+		  text='[process_initial_data] said: 錯誤：請提供可以解析成整數的文字。'
+		),
+	  ],
+	  role='user'
+	), Content(
+	  parts=[
+		Part(
+		  text="錯誤：會話狀態中找不到 'processed_data'。"
+		),
+	  ],
+	  role='model'
+	), Content(
+	  parts=[
+		Part(
+		  text='3'
+		),
+	  ],
+	  role='user'
+	), Content(
+	  parts=[
+		Part(
+		  text='For context:'
+		),
+		Part(
+		  text='[process_initial_data] said: 輸入值 3 已處理，結果 6 已寫入會話狀態。'
+		),
+	  ],
+	  role='user'
+	), Content(
+	  parts=[
+		Part(
+		  text='從會話狀態讀取資料 6，最終結果為 16。'
+		),
+	  ],
+	  role='model'
+	), Content(
+	  parts=[
+		Part(
+		  text='7'
+		),
+	  ],
+	  role='user'
+	), Content(
+	  parts=[
+		Part(
+		  text='For context:'
+		),
+		Part(
+		  text='[process_initial_data] said: 輸入值 7 已處理，結果 14 已寫入會話狀態。'
+		),
+	  ],
+	  role='user'
+	), Content(
+	  parts=[
+		Part(
+		  text='從會話狀態讀取資料 14，最終結果為 24。'
+		),
+	  ],
+	  role='model'
+	), Content(
+	  parts=[
+		Part(
+		  text='8'
+		),
+	  ],
+	  role='user'
+	), Content(
+	  parts=[
+		Part(
+		  text='For context:'
+		),
+		Part(
+		  text='[process_initial_data] said: 輸入值 8 已處理，結果 16 已寫入會話狀態。'
+		),
+	  ],
+	  role='user'
+	), Content(
+	  parts=[
+		Part(
+		  text='從會話狀態讀取資料 16，最終結果為 26。'
+		),
+	  ],
+	  role='model'
+	), Content(
+	  parts=[
+		Part(
+		  text='9'
+		),
+	  ],
+	  role='user'
+	), Content(
+	  parts=[
+		Part(
+		  text='For context:'
+		),
+		Part(
+		  text='[process_initial_data] said: 輸入值 9 已處理，結果 18 已寫入會話狀態。'
+		),
+	  ],
+	  role='user'
+	), Content(
+	  parts=[
+		Part(
+		  text='從會話狀態讀取資料 18，最終結果為 28。'
+		),
+	  ],
+	  role='model'
+	), Content(
+	  parts=[
+		Part(
+		  text='11'
+		),
+	  ],
+	  role='user'
+	), Content(
+	  parts=[
+		Part(
+		  text='For context:'
+		),
+		Part(
+		  text='[process_initial_data] said: 輸入值 11 已處理，結果 22 已寫入會話狀態。'
+		),
+	  ],
+	  role='user'
+	), Content(
+	  parts=[
+		Part(
+		  text='從會話狀態讀取資料 22，最終結果為 32。'
+		),
+	  ],
+	  role='model'
+	), Content(
+	  parts=[
+		Part(
+		  text='13'
+		),
+	  ],
+	  role='user'
+	), Content(
+	  parts=[
+		Part(
+		  text='For context:'
+		),
+		Part(
+		  text='[process_initial_data] said: 輸入值 13 已處理，結果 26 已寫入會話狀態。'
+		),
+	  ],
+	  role='user'
+	), Content(
+	  parts=[
+		Part(
+		  text='從會話狀態讀取資料 26，最終結果為 36。'
+		),
+	  ],
+	  role='model'
+	), Content(
+	  parts=[
+		Part(
+		  text='17'
+		),
+	  ],
+	  role='user'
+	), Content(
+	  parts=[
+		Part(
+		  text='For context:'
+		),
+		Part(
+		  text='[process_initial_data] said: 輸入值 17 已處理，結果 34 已寫入會話狀態。'
+		),
+	  ],
+	  role='user'
+	), Content(
+	  parts=[
+		Part(
+		  text='從會話狀態讀取資料 34，最終結果為 44。'
+		),
+	  ],
+	  role='model'
+	), Content(
+	  parts=[
+		Part(
+		  text='19'
+		),
+	  ],
+	  role='user'
+	), Content(
+	  parts=[
+		Part(
+		  text='For context:'
+		),
+		Part(
+		  text='[process_initial_data] said: 輸入值 19 已處理，結果 38 已寫入會話狀態。'
+		),
+	  ],
+	  role='user'
+	), Content(
+	  parts=[
+		Part(
+		  text='從會話狀態讀取資料 38，最終結果為 48。'
+		),
+	  ],
+	  role='model'
+	), Content(
+	  parts=[
+		Part(
+		  text='23'
+		),
+	  ],
+	  role='user'
+	), Content(
+	  parts=[
+		Part(
+		  text='For context:'
+		),
+		Part(
+		  text='[process_initial_data] said: 輸入值 23 已處理，結果 46 已寫入會話狀態。'
+		),
+	  ],
+	  role='user'
+	)], config=GenerateContentConfig(
+	  system_instruction='You are an agent. Your internal name is "use_and_finalize_data".'
+	), live_connect_config=LiveConnectConfig(), tools_dict={})
+	2025-10-18 09:00:02,416 - INFO - example_agents.py:177 - 🗃️ [use_and_finalize_data] Session state snapshot: {'processed_data': 46}
+	2025-10-18 09:00:02,417 - INFO - example_agents.py:180 - 📦 [use_and_finalize_data] Retrieved processed_data: 46
+	2025-10-18 09:00:02,417 - INFO - example_agents.py:184 - ✨ [use_and_finalize_data] Final result (processed_data + 10): 56
+	2025-10-18 09:00:02,417 - INFO - example_agents.py:190 - 🎉 [use_and_finalize_data] Done. Response: 從會話狀態讀取資 料 46，最終結果為 56。
+	INFO:     127.0.0.1:64728 - "GET /apps/session_state_flow/users/user/sessions/7b4b7c05-f406-4205-a0f2-25fff4fe7e66 HTTP/1.1" 200 OK
+	INFO:     127.0.0.1:55465 - "GET /debug/trace/session/7b4b7c05-f406-4205-a0f2-25fff4fe7e66 HTTP/1.1" 200 OK

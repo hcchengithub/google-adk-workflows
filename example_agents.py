@@ -1,4 +1,5 @@
 import logging
+from collections.abc import Mapping
 from typing import Any, Callable, Optional
 
 from google.adk.agents import LlmAgent
@@ -12,16 +13,84 @@ logging.basicConfig(level=logging.INFO)
 # 預設的 Gemini 模型設定
 MODEL = "gemini-1.5-flash"
 
+MAX_PART_PREVIEW = 200
+MAX_PART_COUNT = 3
+
+
+def _snapshot_content(content: Any) -> Any:
+    """將 Content 物件轉成容易閱讀的摘要表示。"""
+    try:
+        role = getattr(content, "role", None)
+        parts_summary = []
+        parts = getattr(content, "parts", None) or []
+        for index, part in enumerate(parts):
+            if index >= MAX_PART_COUNT:
+                parts_summary.append("… (truncated)")
+                break
+            text = getattr(part, "text", None)
+            if isinstance(text, str):
+                if len(text) > MAX_PART_PREVIEW:
+                    parts_summary.append(text[:MAX_PART_PREVIEW] + "…")
+                else:
+                    parts_summary.append(text)
+            else:
+                parts_summary.append(str(part))
+        snapshot = {"role": role, "parts": parts_summary}
+        return snapshot
+    except Exception as error:  # pylint: disable=broad-except
+        logging.debug("⚠️ [snapshot_content] Failed to snapshot content: %s", error, exc_info=True)
+        return "<content unavailable>"
+
 
 def _snapshot_state(state: Any) -> str:
     """盡可能把 session state 序列化成可讀字串。"""
     try:
-        return repr(dict(state))
-    except TypeError:
-        return repr(state)
+        if state is None:
+            return "{}"
+
+        if isinstance(state, Mapping):
+            snapshot = dict(state)
+        elif hasattr(state, "to_dict") and callable(getattr(state, "to_dict")):
+            snapshot = state.to_dict()
+        elif hasattr(state, "__dict__"):
+            snapshot = {k: v for k, v in vars(state).items() if not k.startswith("_")}
+        else:
+            snapshot = state
+
+        if isinstance(snapshot, (dict, list, tuple, set)):
+            return repr(snapshot)
+        return str(snapshot)
     except Exception as error:  # pylint: disable=broad-except
-        logging.debug("⚠️ [snapshot_state] Failed to snapshot state: %s", error)
+        logging.debug("⚠️ [snapshot_state] Failed to snapshot state: %s", error, exc_info=True)
         return "<state unavailable>"
+
+
+def _snapshot_context(ctx: CallbackContext) -> str:
+    """為 CallbackContext 建立摘要，避免直接觸碰非同步屬性。"""
+    try:
+        if ctx is None:
+            return "{}"
+
+        snapshot: dict[str, Any] = {}
+        agent_name = getattr(ctx, "agent_name", None)
+        if agent_name:
+            snapshot["agent_name"] = agent_name
+
+        invocation_id = getattr(ctx, "invocation_id", None)
+        if invocation_id:
+            snapshot["invocation_id"] = invocation_id
+
+        if hasattr(ctx, "state"):
+            snapshot["state"] = _snapshot_state(ctx.state)
+
+        user_content = getattr(ctx, "user_content", None)
+        if user_content is not None:
+            snapshot["user_content"] = _snapshot_content(user_content)
+
+        return repr(snapshot)
+    except Exception as error:  # pylint: disable=broad-except
+        logging.debug("⚠️ [snapshot_context] Failed to snapshot context: %s", error, exc_info=True)
+        return "<context unavailable>"
 
 
 class FunctionAgent:
@@ -46,7 +115,8 @@ async def _process_initial_data(
     第一個 FunctionAgent：把輸入文字轉成整數、進行計算，並把結果寫進 session state。
     """
     logging.info("🚀🚀 [process_initial_data] Starting…")
-    logging.info("🔍 [process_initial_data] Raw request object: %r", llm_request)
+    logging.info("🧾 [process_initial_data] Context snapshot: %s", _snapshot_context(callback_context))
+    logging.info("📥 [process_initial_data] Raw request object: %r", llm_request)
     logging.info("🗃️ [process_initial_data] Session state before: %s", _snapshot_state(callback_context.state))
 
     try:
@@ -102,7 +172,8 @@ async def _use_and_finalize_data(
     第二個 FunctionAgent：讀取 session state，延伸計算並輸出最終結果。
     """
     logging.info("🚀🚀 [use_and_finalize_data] Starting…")
-    logging.info("🔍 [use_and_finalize_data] Raw request object: %r", llm_request)
+    logging.info("🧾 [use_and_finalize_data] Context snapshot: %s", _snapshot_context(callback_context))
+    logging.info("?? [use_and_finalize_data] Raw request object: %r", llm_request)
     logging.info("🗃️ [use_and_finalize_data] Session state snapshot: %s", _snapshot_state(callback_context.state))
 
     processed_data = callback_context.state.get("processed_data")
