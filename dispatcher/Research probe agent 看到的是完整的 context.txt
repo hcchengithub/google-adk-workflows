@@ -1,0 +1,245 @@
+
+以下是我們讓 dispatcher 執行兩次、做兩次旅程安排的整個 log 的過程。 
+	做两次的原因: 我想看 research probe 能不能看到整个完整的 context --> 结果是：yes。 
+	
+其中，我們的 research probe 發揮了很好的作用：
+	Dispatcher 之上還有 Root Agent。 Root Agent 底下有兩個 Sub-agent，一個是 Dispatcher，
+	另一個就是我們的 Research Probe。 第二次上手時，我們可以看到 research probe，拿到的是
+	前面兩次完整的 context。 
+
+Research Probe 等於是放在整個 Process 的最後面，所看到的結果是前面所有相當完整的 context。所有的 context，我感覺，會不會有漏呢？可能要仔細地研究看看。 
+
+INFO:     127.0.0.1:51624 - "GET /apps/dispatcher/users/user/sessions/7ffa4cfb-80d4-47ac-b109-fc523f3a0516 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51347 - "GET /debug/trace/session/7ffa4cfb-80d4-47ac-b109-fc523f3a0516 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63603 - "POST /run_sse HTTP/1.1" 200 OK
+2025-10-18 22:49:33,654 - INFO - envs.py:47 - Loaded .env file for dispatcher at C:\Users\8304018\OneDrive - Wistron Corporation\Documents\GitLab\adks\google-adk-workflows\.env
+2025-10-18 22:49:33,658 - WARNING - _api_client.py:105 - Both GOOGLE_API_KEY and GEMINI_API_KEY are set. Using GOOGLE_API_KEY.
+2025-10-18 22:49:34,986 - INFO - google_llm.py:113 - Sending out request, model: gemini-2.0-flash, backend: GoogleLLMVariant.GEMINI_API, stream: True
+2025-10-18 22:49:34,987 - INFO - models.py:8323 - AFC is enabled with max remote calls: 10.
+2025-10-18 22:49:36,218 - INFO - models.py:8335 - AFC remote call 1 is done.
+2025-10-18 22:49:36,219 - WARNING - types.py:5658 - Warning: there are non-text parts in the response: ['function_call', 'function_call', 'function_call'], returning concatenated text result from text parts. Check the full candidates.content.parts accessor to get the full model response.
+2025-10-18 22:49:36,221 - WARNING - _api_client.py:105 - Both GOOGLE_API_KEY and GEMINI_API_KEY are set. Using GOOGLE_API_KEY.
+2025-10-18 22:49:37,563 - INFO - google_llm.py:113 - Sending out request, model: gemini-2.0-flash, backend: GoogleLLMVariant.GEMINI_API, stream: False
+2025-10-18 22:49:37,564 - INFO - models.py:8185 - AFC is enabled with max remote calls: 10.
+2025-10-18 22:49:37,565 - WARNING - _api_client.py:105 - Both GOOGLE_API_KEY and GEMINI_API_KEY are set. Using GOOGLE_API_KEY.
+2025-10-18 22:49:39,226 - INFO - google_llm.py:113 - Sending out request, model: gemini-2.0-flash, backend: GoogleLLMVariant.GEMINI_API, stream: False
+2025-10-18 22:49:39,227 - INFO - models.py:8185 - AFC is enabled with max remote calls: 10.
+2025-10-18 22:49:39,229 - WARNING - _api_client.py:105 - Both GOOGLE_API_KEY and GEMINI_API_KEY are set. Using GOOGLE_API_KEY.
+2025-10-18 22:49:40,552 - INFO - google_llm.py:113 - Sending out request, model: gemini-2.0-flash, backend: GoogleLLMVariant.GEMINI_API, stream: False
+2025-10-18 22:49:40,552 - INFO - models.py:8185 - AFC is enabled with max remote calls: 10.
+2025-10-18 22:49:42,121 - INFO - google_llm.py:161 - Response received from the model.
+2025-10-18 22:49:42,124 - INFO - google_llm.py:161 - Response received from the model.
+2025-10-18 22:49:45,945 - INFO - google_llm.py:161 - Response received from the model.
+2025-10-18 22:49:45,954 - WARNING - _api_client.py:105 - Both GOOGLE_API_KEY and GEMINI_API_KEY are set. Using GOOGLE_API_KEY.
+2025-10-18 22:49:47,285 - INFO - google_llm.py:113 - Sending out request, model: gemini-2.0-flash, backend: GoogleLLMVariant.GEMINI_API, stream: True
+2025-10-18 22:49:47,285 - INFO - models.py:8323 - AFC is enabled with max remote calls: 10.
+2025-10-18 22:49:47,996 - INFO - models.py:8335 - AFC remote call 1 is done.
+2025-10-18 22:49:51,522 - INFO - subagent.py:235 - 🔬 [research_probe] Starting…
+2025-10-18 22:49:51,523 - INFO - subagent.py:236 - 🧾 [research_probe] Context snapshot: {'agent_name': 'ResearchProbe', 'invocation_id': 'e-fd51e9fe-dd6a-40ed-b8c7-ef5fb0247749', 'state': '{}', 'user_content': {'role': 'user', 'parts': ['爸爸媽媽三個女兒，一家五口。十二月一號去巴黎玩七天。航班、旅館，這些都無所謂，你幫我安排。我們從臺北出發。\n\n']}}
+2025-10-18 22:49:51,524 - INFO - subagent.py:237 - 🔍 [research_probe] Raw request object: LlmRequest(model='gemini-1.5-flash', contents=[Content(
+  parts=[
+    Part(
+      text='爸爸媽媽三個女兒，一家五口。十一月一號去澎湖玩三天。航班、旅館，這些都無所謂，你幫我安排。我們從臺北出發 。 '
+    ),
+  ],
+  role='user'
+), Content(
+  parts=[
+    Part(
+      text='For context:'
+    ),
+    Part(
+      text="[TripPlanner] called tool `FlightAgent` with parameters: {'request': '台灣台北到澎湖，11月1號出發，共五人'}"
+    ),
+    Part(
+      text="[TripPlanner] called tool `HotelAgent` with parameters: {'request': '澎湖旅館，共五人，入住日期11月1號， 共三晚'}"
+    ),
+    Part(
+      text="[TripPlanner] called tool `SightseeingAgent` with parameters: {'request': '澎湖三天兩夜行程'}"
+    ),
+  ],
+  role='user'
+), Content(
+  parts=[
+    Part(
+      text='For context:'
+    ),
+    Part(
+      text='[TripPlanner] `FlightAgent` tool returned result: {\'result\': \'好的，為您查詢11月1日從台北到澎湖的機票 ，共五位乘客。\\n\\n以下是為您找到的航班資訊：\\n\\n```json\\n{\\n  "booking_details": {\\n    "flight_number": "AE-303",\\n    "departure_city": "台北 (TPE)",\\n    "arrival_city": "澎湖 (MZG)",\\n    "departure_date": "2024-11-01",\\n    "departure_time": "08:00",\\n    "arrival_time": "08:45",\\n    "airline": "華信航空 (Mandarin Airlines)",\\n    "number_of_passengers": 5,\\n    "price_per_passenger": 2200,\\n    "total_price": 11000,\\n    "status": "已確認 (Confirmed)"\\n  },\\n  "additional_info": {\\n    "flight_duration": "45 分鐘",\\n    "aircraft_type": "ATR 72-600",\\n    "baggage_allowance": "每位乘客 20 公斤托運行李，7 公斤手提行李",\\n    "notes": "請提前一小時到達機場辦理登機手續"\\n  }\\n}\\n```\\n\\n請注意：\\n\\n*   這是一個預訂航班，狀態為「已確認」。\\n*   票價為每人 2200 台幣，總價為 11000 台幣 (包含五位乘客)。\\n*   請務必提前一小時到達機場辦理登機手續。\\n\\n請問您確認要預訂此航班嗎？\\n\'}'
+    ),
+    Part(
+      text='[TripPlanner] `HotelAgent` tool returned result: {\'result\': \'```json\\n {\\n  "hotel_name": "澎湖灣度 假酒店",\\n  "check_in_date": "2024-11-01",\\n  "check_out_date": "2024-11-04",\\n  "number_of_guests": 5,\\n  "room_type": "家庭房 (可入住5人)",\\n  "price": "新台幣 15000 元 (三晚)",\\n  "status": "預訂成功"\\n }\\n ```\'}'
+    ),
+    Part(
+      text='[TripPlanner] `SightseeingAgent` tool returned result: {\'result\': \'```json\\n {\\n  "sightseeing_suggestions": [\\n   {\\n    "place": "澎湖跨海大橋",\\n    "description": "澎湖最具代表性的地標，連接白沙、西嶼兩大島嶼。除了橋本身的壯觀，周邊海景也十分迷人，適合拍照留念。",\\n    "timings": "建議白天前往，尤其傍晚時分的夕陽景色更是一絕。",\\n    "details": "橋上風大，請注意安全。周邊有停車場及小吃攤販。"\\n   },\\n   {\\n    "place": "七美嶼",\\n    "description": "以雙心石滬聞名，是澎湖離島中最受歡迎的景點之一。島上還有小台灣、望夫石等自然景觀。",\\n    "timings": "建議安排半天至一天時間遊玩，可搭乘船班前往。",\\n    "details": "船班時間需事先查詢預訂，島上交通可租借機車或參加當地導覽行程。"\\n   }\\n  ],\\n  "additional_tips": [\\n   "澎湖夏季炎熱，請注意防曬及補充水分。",\\n   "建議事先預訂 住宿及船票，尤其旺季時更是一位難求。",\\n   "可品嚐當地海鮮美食，如小管麵線、仙人掌冰等。"\\n  ]\\n }\\n ```\'}'
+    ),
+  ],
+  role='user'
+), Content(
+  parts=[
+    Part(
+      text='For context:'
+    ),
+    Part(
+      text="""[TripPlanner] said: 好的，已為您安排好澎湖三天兩夜的行程，詳細資訊如下：
+
+**航班資訊：**
+
+*   航空公司：華信航空 (Mandarin Airlines)
+*   航班號碼：AE-303
+*   出發地：台北 (TPE)
+*   目的地：澎湖 (MZG)
+*   出發日期：2024-11-01
+*   出發時間：08:00
+*   抵達時間：08:45
+*   乘客數量：5
+*   每人票價：2200 台幣
+*   總價：11000 台幣
+*   狀態：已確認 (Confirmed)
+*   飛行時間：45 分鐘
+*   機型：ATR 72-600
+*   行李限額：每位乘客 20 公斤托運行李，7 公斤手提行李
+*   注意事項：請提前一小時到達機場辦理登機手續
+
+**住宿資訊：**
+
+*   飯店名稱：澎湖灣度假酒店
+*   入住日期：2024-11-01
+*   退房日期：2024-11-04
+*   入住人數：5
+*   房型：家庭房 (可入住5人)
+*   價格：新台幣 15000 元 (三晚)
+*   狀態：預訂成功
+
+**建議行程：**
+
+*   澎湖跨海大橋：澎湖最具代表性的地標，連接白沙、西嶼兩大島嶼。除了橋本身的壯觀，周邊海景也十分迷人，適合拍照留念。 建議白天前往，尤其傍晚時分的夕陽景色更是一絕。橋上風大，請注意安全。周邊有停車場及小吃攤販。
+*   七美嶼：以雙心石滬聞名，是澎湖離島中最受歡迎的景點之一。島上還有小台灣、望夫石等自然景觀。建議安排半天至一天時間 遊玩，可搭乘船班前往。船班時間需事先查詢預訂，島上交通可租借機車或參加當地導覽行程。
+
+**其他注意事項：**
+
+*   澎湖夏季炎熱，請注意防曬及補充水分。
+*   建議事先預訂住宿及船票，尤其旺季時更是一位難求。
+*   可品嚐當地海鮮美食，如小管麵線、仙人掌冰等。
+
+"""
+    ),
+  ],
+  role='user'
+), Content(
+  parts=[
+    Part(
+      text="""研究代理已進入除錯模式 (pdb)，請在 terminal 輸入 continue (或 c) 以繼續流程。
+- invocation_id: e-6f4b3188-327f-41d1-a5c6-b605478640d8
+- processed_data: None
+- request_text: For context:"""
+    ),
+  ],
+  role='model'
+), Content(
+  parts=[
+    Part(
+      text="""爸爸媽媽三個女兒，一家五口。十二月一號去巴黎玩七天。航班、旅館，這些都無所謂，你幫我安排。我們從臺北出 發。
+
+"""
+    ),
+  ],
+  role='user'
+), Content(
+  parts=[
+    Part(
+      text='For context:'
+    ),
+    Part(
+      text="[TripPlanner] called tool `FlightAgent` with parameters: {'request': '台灣台北到法國巴黎，12月1號出發，共五人'}"
+    ),
+    Part(
+      text="[TripPlanner] called tool `HotelAgent` with parameters: {'request': '法國巴黎旅館，共五人，入住日期12月1 號，共七晚'}"
+    ),
+    Part(
+      text="[TripPlanner] called tool `SightseeingAgent` with parameters: {'request': '巴黎七天六夜行程'}"
+    ),
+  ],
+  role='user'
+), Content(
+  parts=[
+    Part(
+      text='For context:'
+    ),
+    Part(
+      text='[TripPlanner] `FlightAgent` tool returned result: {\'result\': \'```json\\n{\\n  "booking_details": {\\n    "flight_number": "AF5227",\\n    "departure_city": "Taipei, Taiwan (TPE)",\\n    "arrival_city": "Paris, France (CDG)",\\n    "departure_date": "2024-12-01",\\n    "departure_time": "09:30",\\n    "arrival_time": "18:30",\\n    "airline": "Air France",\\n    "number_of_passengers": 5,\\n    "price_per_passenger": 1200,\\n    "total_price": 6000,\\n    "status": "confirmed"\\n  }\\n}\\n```\'}'
+    ),
+    Part(
+      text='[TripPlanner] `HotelAgent` tool returned result: {\'result\': \'```json\\n {\\n  "hotel_name": "法國巴黎 旅館",\\n  "city": "Paris",\\n  "country": "France",\\n  "check_in_date": "2023-12-01",\\n  "check_out_date": "2023-12-08",\\n  "number_of_guests": 5,\\n  "room_type": "Family Suite",\\n  "number_of_rooms": 1,\\n  "price": 2500.00,\\n  "currency": "EUR",\\n  "status": "confirmed",\\n  "confirmation_number": "HPA123456"\\n }\\n ```\\n\'}'
+    ),
+    Part(
+      text='[TripPlanner] `SightseeingAgent` tool returned result: {\'result\': \'```json\\n {\\n  "city": "Paris",\\n  "duration": "7 days 6 nights",\\n  "suggested_itinerary": [\\n   {\\n    "day": 1,\\n    "theme": "Iconic Landmarks",\\n    "places_to_visit": [\\n     {\\n      "name": "Eiffel Tower",\\n      "description": "Visit the iconic Eiffel Tower for breathtaking views of Paris. Consider booking tickets in advance to avoid long queues.",\\n      "timings": "Open daily, 9:00 AM to 11:45 PM (last entry at 10:30 PM)",\\n      "relevant_details": "Ticket prices vary depending on the level you wish to visit (1st, 2nd, or summit). Allow at least 2-3 hours for the visit."\\n     },\\n     {\\n      "name": "Louvre Museum",\\n      "description": "Explore the world-renowned Louvre Museum, home to masterpieces like the Mona Lisa and Venus de Milo.",\\n      "timings": "Open daily except Tuesdays, 9:00 AM to 6:00 PM (late openings on Wednesdays and Fridays until 9:45 PM)",\\n      "relevant_details": "Book tickets online in advance to avoid long queues.  Focus on specific sections or wings to make the most of your visit, as the museum is vast. Allow at least 3-4 hours."\\n     }\\n    ]\\n   },\\n   {\\n    "day": 2,\\n    "theme": "Art and Culture",\\n    "places_to_visit": [\\n     {\\n      "name": "Musée d\\\'Orsay",\\n      "description": "Visit the Musée d\\\'Orsay, housed in a former railway station, to see Impressionist and Post-Impressionist masterpieces.",\\n      "timings": "Open daily except Mondays, 9:30 AM to 6:00 PM (late opening on Thursdays until 9:45 PM)",\\n      "relevant_details": "Focus on Impressionist masters like Monet, Renoir, and Degas. Allow at least 2-3 hours for your visit."\\n     },\\n     {\\n      "name": "Montmartre & Sacré-Cœur Basilica",\\n      "description": "Explore the charming Montmartre neighborhood, known for its artistic history and the Sacré-Cœur Basilica.",\\n      "timings": "Sacré-Cœur Basilica is open daily from 6:00 AM to 10:30 PM. Montmartre is best explored during daylight hours.",\\n      "relevant_details": "Enjoy the views from the Sacré-Cœur Basilica, wander through Place du Tertre where artists create and sell their work, and visit the Musée de Montmartre to learn about the area\\\'s history.  Consider a guided walking tour to discover hidden gems."\\n     }\\n    ]\\n   }\\n  ]\\n }\\n ```\'}'
+    ),
+  ],
+  role='user'
+), Content(
+  parts=[
+    Part(
+      text='For context:'
+    ),
+    Part(
+      text="""[TripPlanner] said: 好的，已為您安排好巴黎七天六夜的行程，詳細資訊如下：
+
+**航班資訊：**
+
+*   航空公司：Air France
+*   航班號碼：AF5227
+*   出發地：Taipei, Taiwan (TPE)
+*   目的地：Paris, France (CDG)
+*   出發日期：2024-12-01
+*   出發時間：09:30
+*   抵達時間：18:30
+*   乘客數量：5
+*   每人票價：1200
+*   總價：6000
+*   狀態：confirmed
+
+**住宿資訊：**
+
+*   飯店名稱：法國巴黎旅館
+*   城市：Paris
+*   國家：France
+*   入住日期：2023-12-01
+*   退房日期：2023-12-08
+*   入住人數：5
+*   房型：Family Suite
+*   房間數量：1
+*   價格：2500.00
+*   貨幣：EUR
+*   狀態：confirmed
+*   確認號碼：HPA123456
+
+**建議行程：**
+
+*   **Day 1: Iconic Landmarks**
+    *   Eiffel Tower: Visit the iconic Eiffel Tower for breathtaking views of Paris. Consider booking tickets in advance to avoid long queues. Open daily, 9:00 AM to 11:45 PM (last entry at 10:30 PM). Ticket prices vary depending on the level you wish to visit (1st, 2nd, or summit). Allow at least 2-3 hours for the visit.
+    *   Louvre Museum: Explore the world-renowned Louvre Museum, home to masterpieces like the Mona Lisa and Venus de Milo. Open daily except Tuesdays, 9:00 AM to 6:00 PM (late openings on Wednesdays and Fridays until 9:45 PM). Book tickets online in advance to avoid long queues. Focus on specific sections or wings to make the most of your visit, as the museum is vast. Allow at least 3-4 hours.
+*   **Day 2: Art and Culture**
+    *   Musée d'Orsay: Visit the Musée d'Orsay, housed in a former railway station, to see Impressionist and Post-Impressionist masterpieces. Open daily except Mondays, 9:30 AM to 6:00 PM (late opening on Thursdays until 9:45 PM). Focus on Impressionist masters like Monet, Renoir, and Degas. Allow at least 2-3 hours for your visit.
+    *   Montmartre & Sacré-Cœur Basilica: Explore the charming Montmartre neighborhood, known for its artistic history and the Sacré-Cœur Basilica. Sacré-Cœur Basilica is open daily from 6:00 AM to 10:30 PM. Montmartre is best explored during daylight hours. Enjoy the views from the Sacré-Cœur Basilica, wander through Place du Tertre where artists create and sell their work, and visit the Musée de Montmartre to learn about the area's history. Consider a guided walking tour to discover hidden gems.
+
+"""
+    ),
+  ],
+  role='user'
+)], config=GenerateContentConfig(
+  system_instruction='You are an agent. Your internal name is "ResearchProbe".'
+), live_connect_config=LiveConnectConfig(), tools_dict={})
+2025-10-18 22:49:51,536 - INFO - subagent.py:238 - 🗃️ [research_probe] Session state snapshot: {}
+2025-10-18 22:49:51,536 - INFO - subagent.py:244 - 📝 [research_probe] Raw text from request: For context:
+2025-10-18 22:49:51,536 - INFO - subagent.py:251 - 🛑 [research_probe] 研究代理即將進入 pdb 除錯模式。 請切換到執行 ADK 的終端機，在 (Pdb) 提示符輸入 'c' 或 'continue' 以繼續流程。 若不想每次中斷，可移除 create_research_probe_agent 或將 pdb.set_trace() 註解掉。
+
+===== research_probe =====
+研究代理即將進入 pdb 除錯模式。
+請切換到執行 ADK 的終端機，在 (Pdb) 提示符輸入 'c' 或 'continue' 以繼續流程。
+若不想每次中斷，可移除 create_research_probe_agent 或將 pdb.set_trace() 註解掉。
+==========================
+
+> c:\users\8304018\onedrive - wistron corporation\documents\gitlab\adks\google-adk-workflows\subagent.py(253)_research_probe()
+-> pdb.set_trace()
+(Pdb)

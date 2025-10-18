@@ -260,7 +260,9 @@ async def _research_probe(
         ]
         response_text = "\n".join(response_lines)
         logging.info("✅ [research_probe] Done. Response: %s", response_text)
-        return LlmResponse(content=Content(role="model", parts=[Part(text=response_text)]))
+        
+        # return LlmResponse(content=Content(role="model", parts=[Part(text=response_text)]))
+        return None
 
     except Exception as error:  # pylint: disable=broad-except
         logging.error("❌ [research_probe] Unexpected error: %s", error, exc_info=True)

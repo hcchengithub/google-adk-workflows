@@ -46,6 +46,12 @@ dispatcher_core_agent = LlmAgent(
     tools=[flight_tool, hotel_tool, sightseeing_tool]
 )
 
+# 這個 root agent 好像是 Codex CLI 幫我加的。我記得原版只到 Dispatcher Agent 為止。那加了這個 root agent 的目的
+# 是為了讓 research probe agent 在 sequential 裡在最後面上手。 其實我們如果 root agent 做成 sequential agent，
+# 其實也可能沒必要。 如果我先前是很希望能夠跟它用交談的方式來做 research probe，那如果是那個目的的話，這個地方，root 
+# agent 就可以做成 LlmAgent。普通的交談就可以了，所以他做完 Dispatcher Core Agent 的工作以後，停下來繼續跟 user 交
+# 談。我就可以叫它去 call research probe agent 甚至還讓它進 Break Point。 
+
 root_agent = SequentialAgent(
     name="DispatcherWorkflow",
     description="Runs the dispatcher core agent then executes the research probe for deeper inspection.",

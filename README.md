@@ -1,5 +1,6 @@
 # Multi-Agent Trip Planning System
 
+我讀到的相關文章是這一篇: [How to build a simple multi-agentic system using Google’s ADK](https://cloud.google.com/blog/products/ai-machine-learning/build-multi-agentic-systems-using-google-adk)。
 A sophisticated multi-agent workflow built with Google's Agent Development Kit (ADK) that demonstrates the power of specialized AI agents working together to solve complex travel planning tasks.
 
 ## 🏗️ Architecture
