@@ -11,12 +11,13 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Import all agents from common subagent file
-from subagent import create_flight_agent, create_hotel_agent, create_sightseeing_agent
+from subagent import create_flight_agent, create_hotel_agent, create_sightseeing_agent, create_research_probe_agent
 
 # Create new instances of the agents
 flight_agent = create_flight_agent()
 hotel_agent = create_hotel_agent()
 sightseeing_agent = create_sightseeing_agent()
+research_agent = create_research_probe_agent()
 
 # Root agent acting as a Trip Planner coordinator
 root_agent = LlmAgent(
@@ -30,5 +31,5 @@ root_agent = LlmAgent(
     - Coordinate between all agents to provide complete trip planning
     - Ensure all user requirements are met across flight, hotel, and sightseeing needs
     """,
-    sub_agents=[flight_agent, hotel_agent, sightseeing_agent] # The coordinator manages these sub-agents
+    sub_agents=[flight_agent, hotel_agent, sightseeing_agent, research_agent] # The coordinator manages these sub-agents
 ) 

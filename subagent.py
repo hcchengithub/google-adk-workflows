@@ -15,6 +15,7 @@ from google.adk.agents import LlmAgent
 from google.adk.agents.callback_context import CallbackContext
 from google.adk.models import LlmRequest, LlmResponse
 from google.genai.types import Content, Part
+import pdb
 
 # Load environment variables once so factories can rely on MODEL_NAME overrides.
 load_dotenv()
@@ -134,7 +135,7 @@ async def _process_initial_data(
     callback_context: CallbackContext, llm_request: LlmRequest
 ) -> Optional[LlmResponse]:
     """Convert user text to an integer, persist it in session state, and echo the result."""
-    logging.info("🌟 [process_initial_data] Starting…")
+    logging.info("🚀🚀 [process_initial_data] Starting…")
     logging.info("🧾 [process_initial_data] Context snapshot: %s", _snapshot_context(callback_context))
     logging.info("🔍 [process_initial_data] Raw request object: %r", llm_request)
     logging.info("🗃️ [process_initial_data] Session state before: %s", _snapshot_state(callback_context.state))
@@ -181,7 +182,7 @@ async def _use_and_finalize_data(
     callback_context: CallbackContext, llm_request: LlmRequest
 ) -> Optional[LlmResponse]:
     """Read processed data from session state, finalize it, and respond."""
-    logging.info("🌟 [use_and_finalize_data] Starting…")
+    logging.info("🚀🚀 [use_and_finalize_data] Starting…")
     logging.info("🧾 [use_and_finalize_data] Context snapshot: %s", _snapshot_context(callback_context))
     logging.info("🔍 [use_and_finalize_data] Raw request object: %r", llm_request)
     logging.info("🗃️ [use_and_finalize_data] Session state snapshot: %s", _snapshot_state(callback_context.state))
@@ -222,6 +223,66 @@ def create_use_and_finalize_data_agent() -> LlmAgent:
         return await _use_and_finalize_data(callback_context, llm_request)
 
     return FunctionAgent(name="use_and_finalize_data", model=SESSION_STATE_MODEL)(handler)
+
+
+RESEARCH_BREAKPOINT_TOKEN = "::breakpoint::"
+
+
+async def _research_probe(
+    callback_context: CallbackContext, llm_request: LlmRequest
+) -> Optional[LlmResponse]:
+    """Inspect invocation context with rich logging, optionally enter pdb."""
+    logging.info("🔬 [research_probe] Starting…")
+    logging.info("🧾 [research_probe] Context snapshot: %s", _snapshot_context(callback_context))
+    logging.info("🔍 [research_probe] Raw request object: %r", llm_request)
+    logging.info("🗃️ [research_probe] Session state snapshot: %s", _snapshot_state(callback_context.state))
+
+    try:
+        latest_content = llm_request.contents[-1]
+        latest_part = latest_content.parts[0]
+        raw_text = latest_part.text or ""
+        logging.info("📝 [research_probe] Raw text from request: %s", raw_text)
+
+        instructions = (
+            "研究代理即將進入 pdb 除錯模式。\n"
+            "請切換到執行 ADK 的終端機，在 (Pdb) 提示符輸入 'c' 或 'continue' 以繼續流程。\n"
+            "若不想每次中斷，可移除 create_research_probe_agent 或將 pdb.set_trace() 註解掉。"
+        )
+        logging.info("🛑 [research_probe] %s", instructions.replace('\n', ' '))
+        print(f"\n===== research_probe =====\n{instructions}\n==========================\n", flush=True)
+        pdb.set_trace()
+
+        response_lines = [
+            "研究代理已進入除錯模式 (pdb)，請在 terminal 輸入 continue (或 c) 以繼續流程。",
+            f"- invocation_id: {getattr(callback_context, 'invocation_id', '<unknown>')}",
+            f"- processed_data: {callback_context.state.get('processed_data')}",
+            f"- request_text: {raw_text}",
+        ]
+        response_text = "\n".join(response_lines)
+        logging.info("✅ [research_probe] Done. Response: %s", response_text)
+        return LlmResponse(content=Content(role="model", parts=[Part(text=response_text)]))
+
+    except Exception as error:  # pylint: disable=broad-except
+        logging.error("❌ [research_probe] Unexpected error: %s", error, exc_info=True)
+        return LlmResponse(
+            content=Content(
+                role="model",
+                parts=[Part(text=f"研究代理發生錯誤: {error}")],
+            )
+        )
+
+
+
+
+def create_research_probe_agent(model: Optional[str] = None) -> LlmAgent:
+    """Factory: returns a research agent with verbose logging that always breaks into pdb."""
+    target_model = model or SESSION_STATE_MODEL
+
+    async def handler(callback_context: CallbackContext, llm_request: LlmRequest) -> Optional[LlmResponse]:
+        return await _research_probe(callback_context, llm_request)
+
+    return FunctionAgent(name="ResearchProbe", model=target_model)(handler)
+
 
 
 # ---------------------------------------------------------------------------
@@ -286,4 +347,5 @@ __all__ = [
     "create_trip_summary_agent",
     "create_process_initial_data_agent",
     "create_use_and_finalize_data_agent",
+    "create_research_probe_agent",
 ]

@@ -24,7 +24,8 @@ from subagent import (
     create_flight_agent, 
     create_hotel_agent, 
     create_sightseeing_agent, 
-    create_trip_summary_agent
+    create_trip_summary_agent,
+    create_research_probe_agent
 )
 
 # Create new instances of the agents
@@ -32,6 +33,7 @@ flight_agent = create_flight_agent()
 hotel_agent = create_hotel_agent()
 sightseeing_agent = create_sightseeing_agent()
 trip_summary_agent = create_trip_summary_agent()
+research_probe_agent = create_research_probe_agent()
 
 # Trip Summary Reviewer - specific to self-critic workflow
 trip_summary_reviewer = LlmAgent(
@@ -79,5 +81,5 @@ root_agent = SequentialAgent(
     description="Orchestrates the trip planning process by first fetching flight, hotel, and sightseeing information concurrently, then summarizing the trip details into a single document.",
     # Run parallel fetch, then synthesize
     sub_agents=[sightseeing_agent, plan_parallel,
-                trip_summary_agent, trip_summary_reviewer, validate_trip_summary]
+                trip_summary_agent, trip_summary_reviewer, validate_trip_summary, research_probe_agent]
 )

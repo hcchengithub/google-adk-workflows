@@ -3,7 +3,7 @@ Dispatcher Agent
 Routes travel requests to appropriate specialized agents.
 """
 
-from google.adk.agents import LlmAgent
+from google.adk.agents import LlmAgent, SequentialAgent
 from google.adk.tools import agent_tool
 import os
 from dotenv import load_dotenv
@@ -12,12 +12,13 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Import all agents from common subagent file
-from subagent import create_flight_agent, create_hotel_agent, create_sightseeing_agent
+from subagent import create_flight_agent, create_hotel_agent, create_sightseeing_agent, create_research_probe_agent
 
 # Create new instances of the agents
 flight_agent = create_flight_agent()
 hotel_agent = create_hotel_agent()
 sightseeing_agent = create_sightseeing_agent()
+research_probe_agent = create_research_probe_agent()
 
 # Convert specialized agents into tools
 flight_tool = agent_tool.AgentTool(agent=flight_agent)
@@ -25,7 +26,7 @@ hotel_tool = agent_tool.AgentTool(agent=hotel_agent)
 sightseeing_tool = agent_tool.AgentTool(agent=sightseeing_agent)
 
 
-root_agent = LlmAgent(
+dispatcher_core_agent = LlmAgent(
     model=os.getenv('MODEL_NAME', 'gemini-2.0-flash'),
     name="TripPlanner",
     instruction=f"""
@@ -45,5 +46,10 @@ root_agent = LlmAgent(
     tools=[flight_tool, hotel_tool, sightseeing_tool]
 )
 
+root_agent = SequentialAgent(
+    name="DispatcherWorkflow",
+    description="Runs the dispatcher core agent then executes the research probe for deeper inspection.",
+    sub_agents=[dispatcher_core_agent, research_probe_agent],
+)
 
 # Hi, Please suggest me places to visit in paris in july for honeymoon and book flight from Delhi and hotel for 5 nights from 15th July 2025 
